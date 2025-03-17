@@ -1,98 +1,193 @@
 import os
-# esta é a interface do jogo
-# o jogo é jogado por dois jogadores,  x e 0 que alternam entre turnos
-
+import random
+import math
+#falta melhorar diversas coisas no codigo ,como testar diferentes parâmetros para o UCT(numeros de simulações filhos por nós), e melhorar a interface gráfica
+#melhorar eficiência do código e torna-lo mais agil para o usuario
+#integrar o jogo para o modo humano vs computador : o computador deve tomar decisões inteligentes e não aleatórias contra o jogador humano
+#de seguida as melhorias devemos tratar do dataset para arvore de decisão (ID3) para o treino do modelo 
+#usar mcts para gerar estados do jogo e as melhores jogadas ,salvar esses dados como um dataset(cs.. ou json),
+#criar banco de dados para treinar a arvore de decisão(não usar sckit learn ,ta escrito no enunciado)
+#criar função para testar novas jogadas usando a arvore,o computador deve tomar decisões baseadas na arvore de decisão
+#cenarios do jogo,humano vs humano ,humano vs computador,computador vs computador (compare os metodos )
+#vejam  o codigo por inteiro por favor e comentem o que acham que deve ser melhorado ou adicionado,o que esta errado
 def create_board():
     board = []
-    for row in range(6):
+    for _ in range(6):
         board.append(["_"]*7)
-    board.append([])
     return board
 
-def show_board(board, turn):
-    os.system('cls')  # os.system('clear') for linux
-    print("Connect Four Game")
-    print(f"It is currently {turn}'s turn")
-    print("Make a move by choosing your coordinates to play")
-    for row in board[:-1]:
-        print(' ' + ' '.join(row))
-    print(" " + "".join(board[-1]))
-    print()
+class ConnectFourState:
+    def __init__(self):
+        self.board = create_board()
+        self.current_player = 'X'
+        self.last_move = None
+    
+    def clone(self):
+        new_state = ConnectFourState()
+        new_state.board = [row[:] for row in self.board]
+        new_state.current_player = self.current_player
+        new_state.last_move = self.last_move
+        return new_state
+    
+    def get_legal_moves(self):
+        return [col for col in range(7) if not self.is_column_full(col)]
+    
+    def is_column_full(self, col):
+        return self.board[0][col] != '_'
+    
+    def do_move(self, col):
+        new_state = self.clone()
+        # Find the lowest empty position in the column
+        for row in range(5, -1, -1):
+            if new_state.board[row][col] == '_':
+                new_state.board[row][col] = self.current_player
+                new_state.last_move = (row, col)
+                new_state.current_player = 'O' if self.current_player == 'X' else 'X'
+                return new_state
+        return None
 
-def check_stuck(board, move):
-    return board[0][move] != "_"
+    def is_terminal(self):
+        return self.get_winner() != 0 or len(self.get_legal_moves()) == 0
 
-def get_move(board):
-    while True:
-        try:
-            move = int(input("Enter 0-6 to drop your piece in a column: ").strip())
-            if 0 <= move <= 6 and not check_stuck(board, move):
-                return move
+    def get_winner(self):
+        # Check horizontal
+        for row in range(6):
+            for col in range(4):
+                if (self.board[row][col] != '_' and
+                    self.board[row][col] == self.board[row][col+1] == 
+                    self.board[row][col+2] == self.board[row][col+3]):
+                    return 1 if self.board[row][col] == 'X' else -1
+
+        # Check vertical
+        for row in range(3):
+            for col in range(7):
+                if (self.board[row][col] != '_' and
+                    self.board[row][col] == self.board[row+1][col] ==
+                    self.board[row+2][col] == self.board[row+3][col]):
+                    return 1 if self.board[row][col] == 'X' else -1
+
+        # Check diagonals
+        for row in range(3):
+            for col in range(4):
+                # Down-right diagonal
+                if (self.board[row][col] != '_' and
+                    self.board[row][col] == self.board[row+1][col+1] ==
+                    self.board[row+2][col+2] == self.board[row+3][col+3]):
+                    return 1 if self.board[row][col] == 'X' else -1
+                
+                # Down-left diagonal
+                if (self.board[row][col+3] != '_' and
+                    self.board[row][col+3] == self.board[row+1][col+2] ==
+                    self.board[row+2][col+1] == self.board[row+3][col]):
+                    return 1 if self.board[row][col+3] == 'X' else -1
+        
+        return 0
+
+class Node:
+    def __init__(self, state, parent=None):
+        self.state = state
+        self.parent = parent
+        self.children = []
+        self.visits = 0
+        self.value = 0
+
+    def is_fully_expanded(self):
+        return len(self.children) == len(self.state.get_legal_moves())
+    
+    def select_child(self):
+        depth = self.get_depth()
+        exploration_constant = 1.0 / math.sqrt(depth + 2.0)
+        return max(self.children, key=lambda c: c.value/c.visits + exploration_constant * math.sqrt(2*math.log(self.visits)/c.visits))
+    # comparar os valores de value/ visits
+    def add_child(self, child_state):
+        child = Node(child_state, self)
+        self.children.append(child)
+        return child
+
+def uct_search(state, num_iterations):
+    root_node = Node(state)
+    
+    for _ in range(num_iterations):
+        node = root_node
+        state = state.clone()
+        
+        
+        while not state.is_terminal() and node.is_fully_expanded():
+            node = node.select_child()
+            state = state.do_move(node.state.last_move[1])  # Use column number
+            
+        # Expansion
+        if not state.is_terminal():
+            unexplored_moves = [move for move in state.get_legal_moves() 
+                              if move not in [child.state.last_move[1] 
+                                            for child in node.children]]
+            if unexplored_moves:
+                chosen_move = random.choice(unexplored_moves)
+                state = state.do_move(chosen_move)
+                node = node.add_child(state)
+        
+        # Simulation
+        while not state.is_terminal():
+            legal_moves = state.get_legal_moves()
+            if legal_moves:
+                move = random.choice(legal_moves)
+                state = state.do_move(move)
             else:
-                print("Try again. Choose a column 0-6:")
-        except ValueError:
-            print("Try again. That's not a number")
+                break
+                
+        # Backpropagation
+        while node is not None:
+            node.visits += 1
+            node.value += state.get_winner()
+            node = node.parent
+            
+    return max(root_node.children, key=lambda c: c.visits).state.last_move[1]
 
-def make_move(board, move, turn):
-    for i in range(5, -1, -1):  # Check from bottom up
-        if board[i][move] == "_":
-            board[i][move] = turn
-            return board
-    return board
-
-def check_draw(board):
-    for move in range(7):
-        if not check_stuck(board, move):
-            return False
-    return True
-
-def check_win(board, turn):
-    # check horizontals
-    for row in range(6):
-        for col in range(4):
-            if all(board[row][col+i] == turn for i in range(4)):
-                return True
+def main():
+    state = ConnectFourState()  
     
-    # check verticals
-    for row in range(3):
-        for col in range(7):
-            if all(board[row+i][col] == turn for i in range(4)):
-                return True
-    
-    # check diagonals
-    for row in range(3):
-        for col in range(4):
-            # down-right diagonal
-            if all(board[row+i][col+i] == turn for i in range(4)):
-                return True
-            # down-left diagonal
-            if all(board[row+i][col+3-i] == turn for i in range(4)):
-                return True
-    return False
-
-def game():
-    board = create_board()
-    turn = "X"
-    
-    while True:
-        show_board(board, turn)
-        move = get_move(board)
-        board = make_move(board, move, turn)
+    while not state.is_terminal():
+        os.system('cls')
+        for row in state.board:
+            print('|' + '|'.join(row) + '|')
+        print('-' * 15)
+        print(' 0 1 2 3 4 5 6 ')
         
-        if check_win(board, turn):
-            show_board(board, turn)
-            print(f"Player {turn} wins! Game over.")
-            break
-        elif check_draw(board):
-            show_board(board, turn)
-            print("Board full! Game over.")
-            break
+        if state.current_player == 'X':
+            move = uct_search(state, 1000)
+        else:
         
-        turn = "O" if turn == "X" else "X"
+            while True:
+                try:
+                    col = int(input(f"Player {state.current_player}, choose column (0-6): "))
+                    if 0 <= col <= 6 and not state.is_column_full(col):
+                        move = col
+                        break
+                    print("Invalid move. Column full or out of range.")
+                except ValueError:
+                    print("Please enter a number between 0 and 6.")
+        
+        state = state.do_move(move)
+    
+
+    os.system('cls')
+    for row in state.board:
+        print('|' + '|'.join(row) + '|')
+    print('-' * 15)
+    
+    winner = state.get_winner()
+    if winner == 1:
+        print("X wins!")
+    elif winner == -1:
+        print("O wins!")
+    else:
+        print("Draw!")
 
 if __name__ == "__main__":
-    game()
+    main()
 
+       
+        
 
 
 
