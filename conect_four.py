@@ -185,6 +185,10 @@ def main():
 
 if __name__ == "__main__":
     main()
+    #implementação ta em jogador vs computador ,falta implementar jogador vs jogador e computador vs computador
+    #falta implementar a arvore de decisão e o dataset para treino do modelo
+    #falta implementar a função para testar novas jogadas usando a arvore de decisão
+    #as regras do jogo não estão implementadas como deveriam,pode ser visto no tableaux apresentado quando o codigo é executado
 
        
         
