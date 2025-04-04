@@ -2,17 +2,22 @@ import os
 import random
 import math
 
-# TODO: Precisamos de uma interface pré-game ou que se passe por argumentos ao executar o programa para selecionarmos o modo de jogo e qual tipo de pesquisa será usada pela IA, se for jogar.
+# PRIO TODO: Refatorar uct_search, não há cálculo das estatísticas dos nós (Ver slides UCB1)
 
+#implementação ta em jogador vs computador ,falta implementar jogador vs jogador e computador vs computador - FEITO
+#falta implementar a arvore de decisão e o dataset para treino do modelo
+#falta implementar a função para testar novas jogadas usando a arvore de decisão
+#as regras do jogo não estão implementadas como deveriam,pode ser visto no tableaux apresentado quando o codigo é executado
 #falta melhorar diversas coisas no codigo ,como testar diferentes parâmetros para o UCT(numeros de simulações filhos por nós), e melhorar a interface gráfica
 #melhorar eficiência do código e torna-lo mais agil para o usuario
-#integrar o jogo para o modo humano vs computador : o computador deve tomar decisões inteligentes e não aleatórias contra o jogador humano
+#integrar o jogo para o modo humano vs computador : o computador deve tomar decisões inteligentes e não aleatórias contra o jogador humano - (Há um problema na implementação do uct_search - Não é calculado o UCB1)
 #de seguida as melhorias devemos tratar do dataset para arvore de decisão (ID3) para o treino do modelo 
 #usar mcts para gerar estados do jogo e as melhores jogadas ,salvar esses dados como um dataset(cs.. ou json),
 #criar banco de dados para treinar a arvore de decisão(não usar sckit learn ,ta escrito no enunciado)
 #criar função para testar novas jogadas usando a arvore,o computador deve tomar decisões baseadas na arvore de decisão
 #cenarios do jogo,humano vs humano ,humano vs computador,computador vs computador (compare os metodos )
 #vejam  o codigo por inteiro por favor e comentem o que acham que deve ser melhorado ou adicionado,o que esta errado
+
 def create_board():
     board = []
     for _ in range(6):
@@ -20,11 +25,77 @@ def create_board():
     return board
 
 def print_board(board):
-    os.system('clear' if os.name == 'posix' else 'cls') #Comentar linha antes de executar para ver o tableaux
+    os.system('clear' if os.name == 'posix' else 'cls') #Comentar esta linha antes de executar para ver o tableaux
     print(" 0 1 2 3 4 5 6")
     for row in board:
         print("|" + "|".join(row) + "|")
     print()
+
+def human_vs_human(state):
+    while not state.is_terminal():
+        print_board(state.board)
+        current_player = state.current_player
+        
+        while True:
+            try:
+                col = int(input(f"Player {state.current_player}, choose column (0-6): "))
+                if 0 <= col <= 6 and not state.is_column_full(col):
+                    new_state = state.do_move(col)
+                    if new_state:
+                        state = new_state
+                        break
+                print("Invalid move. Column full or out of range.")
+            except ValueError:
+                print("Please enter a number between 0 and 6.")
+    
+    print_board(state.board)
+    print_result(state)
+
+def human_vs_pc(state):
+    while not state.is_terminal():
+        print_board(state.board)
+        
+        if state.current_player == 'X':
+            print("X Plays:\n")
+            move = uct_search(state, 1000)
+        else:
+            print("O Plays:\n")
+            move = get_human_move(state)
+        
+        state = state.do_move(move)
+    
+    print_board(state.board)
+    print_result(state)
+
+def pc_vs_pc(state):
+    while not state.is_terminal():
+        print_board(state.board)
+        print(f"{state.current_player} Plays:\n")
+        move = uct_search(state, 1000)
+        state = state.do_move(move)
+        os.system('sleep 1')  # Atraso para visualização
+    
+    print_board(state.board)
+    print_result(state)
+
+def get_human_move(state):
+    while True:
+        try:
+            col = int(input(f"Player {state.current_player}, choose column (0-6): "))
+            if 0 <= col <= 6 and not state.is_column_full(col):
+                return col
+            print("Invalid move. Column full or out of range.")
+        except ValueError:
+            print("Please enter a number between 0 and 6.")
+
+def print_result(state):
+    winner = state.get_winner()
+    if winner == 1:
+        print("X wins!")
+    elif winner == -1:
+        print("O wins!")
+    else:
+        print("Draw!")
 
 class ConnectFourState:
     def __init__(self):
@@ -145,41 +216,36 @@ def uct_search(state, num_iterations):
             
     return max(root_node.children, key=lambda c: c.visits).state.last_move[1]
 
+def show_menu():
+    print("\n" + "="*38)
+    print("     CONNECT FOUR - Modos de Jogo")
+    #print("     by Adelino, Martim e Rodrigo")
+    print("="*38)
+    print("1. Humano vs Humano (👤 x 👤)")
+    print("2. Humano vs Computador (👤 x 🤖)")
+    print("3. Computador vs Computador (🤖 x 🤖)")
+    print("="*38)
+
 def main():
-    state = ConnectFourState()  
-    
-    while not state.is_terminal():
-        print_board(state.board)
-        
-        if state.current_player == 'X':
-            print("X plays\n")
-            move = uct_search(state, 1000)
-        else:
-            print(f"O plays\n")
-            while True:
-                try:
-                    col = int(input("Player {state.current_player}, choose column (0-6): "))
-                    if 0 <= col <= 6 and not state.is_column_full(col):
-                        move = col
-                        break
-                    print("Invalid move. Column full or out of range.")
-                except ValueError:
-                    print("Please enter a number between 0 and 6.")
-        
-        state = state.do_move(move)
-    
-    print_board(state.board)
-    winner = state.get_winner()
-    if winner == 1:
-        print("X wins!")
-    elif winner == -1:
-        print("O wins!")
-    else:
-        print("Draw!")
+    while True:
+        show_menu()
+        try:
+            choice = int(input("CHOOSE GAME MODE (1-3): "))
+            if 1 <= choice <= 3:
+                state = ConnectFourState()
+                
+                if choice == 1:
+                    human_vs_human(state)
+                elif choice == 2:
+                    human_vs_pc(state)
+                else:
+                    pc_vs_pc(state)
+                
+                break
+            else:
+                print("\nInvalid option. Try again.\n")
+        except ValueError:
+            print("\nPlease insert a number between 1 and 3:\n")
 
 if __name__ == "__main__":
     main()
-    #implementação ta em jogador vs computador ,falta implementar jogador vs jogador e computador vs computador
-    #falta implementar a arvore de decisão e o dataset para treino do modelo
-    #falta implementar a função para testar novas jogadas usando a arvore de decisão
-    #as regras do jogo não estão implementadas como deveriam,pode ser visto no tableaux apresentado quando o codigo é executado
