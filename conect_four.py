@@ -1,6 +1,9 @@
 import os
 import random
 import math
+
+# TODO: Precisamos de uma interface pré-game ou que se passe por argumentos ao executar o programa para selecionarmos o modo de jogo e qual tipo de pesquisa será usada pela IA, se for jogar.
+
 #falta melhorar diversas coisas no codigo ,como testar diferentes parâmetros para o UCT(numeros de simulações filhos por nós), e melhorar a interface gráfica
 #melhorar eficiência do código e torna-lo mais agil para o usuario
 #integrar o jogo para o modo humano vs computador : o computador deve tomar decisões inteligentes e não aleatórias contra o jogador humano
@@ -15,6 +18,13 @@ def create_board():
     for _ in range(6):
         board.append(["_"]*7)
     return board
+
+def print_board(board):
+    os.system('clear' if os.name == 'posix' else 'cls') #Comentar linha antes de executar para ver o tableaux
+    print(" 0 1 2 3 4 5 6")
+    for row in board:
+        print("|" + "|".join(row) + "|")
+    print()
 
 class ConnectFourState:
     def __init__(self):
@@ -36,7 +46,10 @@ class ConnectFourState:
         return self.board[0][col] != '_'
     
     def do_move(self, col):
+        if col < 0 or col > 6 or self.is_column_full(col):
+            return None
         new_state = self.clone()
+
         # Find the lowest empty position in the column
         for row in range(5, -1, -1):
             if new_state.board[row][col] == '_':
@@ -47,41 +60,30 @@ class ConnectFourState:
         return None
 
     def is_terminal(self):
-        return self.get_winner() != 0 or len(self.get_legal_moves()) == 0
+        return self.get_winner() is not None or len(self.get_legal_moves()) == 0
 
     def get_winner(self):
-        # Check horizontal
-        for row in range(6):
-            for col in range(4):
-                if (self.board[row][col] != '_' and
-                    self.board[row][col] == self.board[row][col+1] == 
-                    self.board[row][col+2] == self.board[row][col+3]):
-                    return 1 if self.board[row][col] == 'X' else -1
-
-        # Check vertical
-        for row in range(3):
-            for col in range(7):
-                if (self.board[row][col] != '_' and
-                    self.board[row][col] == self.board[row+1][col] ==
-                    self.board[row+2][col] == self.board[row+3][col]):
-                    return 1 if self.board[row][col] == 'X' else -1
-
-        # Check diagonals
-        for row in range(3):
-            for col in range(4):
-                # Down-right diagonal
-                if (self.board[row][col] != '_' and
-                    self.board[row][col] == self.board[row+1][col+1] ==
-                    self.board[row+2][col+2] == self.board[row+3][col+3]):
-                    return 1 if self.board[row][col] == 'X' else -1
-                
-                # Down-left diagonal
-                if (self.board[row][col+3] != '_' and
-                    self.board[row][col+3] == self.board[row+1][col+2] ==
-                    self.board[row+2][col+1] == self.board[row+3][col]):
-                    return 1 if self.board[row][col+3] == 'X' else -1
+        directions = [
+            (0, 1),  # horizontal
+            (1, 0),  # vertical
+            (1, 1),  # diagonal down-right
+            (1, -1)   # diagonal down-left
+        ]
         
-        return 0
+        for row in range(6):
+            for col in range(7):
+                if self.board[row][col] == '_':
+                    continue
+                    
+                for dr, dc in directions:
+                    try:
+                        if (self.board[row][col] == self.board[row + dr][col + dc] ==
+                            self.board[row + 2*dr][col + 2*dc] == 
+                            self.board[row + 3*dr][col + 3*dc] != '_'):
+                            return 1 if self.board[row][col] == 'X' else -1
+                    except IndexError:
+                        continue
+        return None
 
 class Node:
     def __init__(self, state, parent=None):
@@ -99,6 +101,7 @@ class Node:
         exploration_constant = 1.0 / math.sqrt(depth + 2.0)
         return max(self.children, key=lambda c: c.value/c.visits + exploration_constant * math.sqrt(2*math.log(self.visits)/c.visits))
     # comparar os valores de value/ visits
+
     def add_child(self, child_state):
         child = Node(child_state, self)
         self.children.append(child)
@@ -111,12 +114,11 @@ def uct_search(state, num_iterations):
         node = root_node
         state = state.clone()
         
-        
         while not state.is_terminal() and node.is_fully_expanded():
             node = node.select_child()
             state = state.do_move(node.state.last_move[1])  # Use column number
-            
-        # Expansion
+
+        # Expansion    
         if not state.is_terminal():
             unexplored_moves = [move for move in state.get_legal_moves() 
                               if move not in [child.state.last_move[1] 
@@ -134,11 +136,11 @@ def uct_search(state, num_iterations):
                 state = state.do_move(move)
             else:
                 break
-                
+        
         # Backpropagation
         while node is not None:
             node.visits += 1
-            node.value += state.get_winner()
+            node.value += state.get_winner() if state.get_winner() is not None else 0
             node = node.parent
             
     return max(root_node.children, key=lambda c: c.visits).state.last_move[1]
@@ -147,19 +149,16 @@ def main():
     state = ConnectFourState()  
     
     while not state.is_terminal():
-        os.system('cls')
-        for row in state.board:
-            print('|' + '|'.join(row) + '|')
-        print('-' * 15)
-        print(' 0 1 2 3 4 5 6 ')
+        print_board(state.board)
         
         if state.current_player == 'X':
+            print("X plays\n")
             move = uct_search(state, 1000)
         else:
-        
+            print(f"O plays\n")
             while True:
                 try:
-                    col = int(input(f"Player {state.current_player}, choose column (0-6): "))
+                    col = int(input("Player {state.current_player}, choose column (0-6): "))
                     if 0 <= col <= 6 and not state.is_column_full(col):
                         move = col
                         break
@@ -169,12 +168,7 @@ def main():
         
         state = state.do_move(move)
     
-
-    os.system('cls')
-    for row in state.board:
-        print('|' + '|'.join(row) + '|')
-    print('-' * 15)
-    
+    print_board(state.board)
     winner = state.get_winner()
     if winner == 1:
         print("X wins!")
@@ -189,9 +183,3 @@ if __name__ == "__main__":
     #falta implementar a arvore de decisão e o dataset para treino do modelo
     #falta implementar a função para testar novas jogadas usando a arvore de decisão
     #as regras do jogo não estão implementadas como deveriam,pode ser visto no tableaux apresentado quando o codigo é executado
-
-       
-        
-
-
-
