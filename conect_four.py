@@ -2,8 +2,9 @@ import os
 import random
 import math
 
-# PRIO TODO: Refatorar uct_search, não há cálculo das estatísticas dos nós (Ver slides UCB1)
+# PRIO TODO: Implementar árvore de decisão ID3 e tratar dos dataset's e BD.
 
+#Refatorar uct_search, não há cálculo das estatísticas dos nós (Ver slides UCB1) - FEITO
 #implementação ta em jogador vs computador ,falta implementar jogador vs jogador e computador vs computador - FEITO
 #falta implementar a arvore de decisão e o dataset para treino do modelo
 #falta implementar a função para testar novas jogadas usando a arvore de decisão
@@ -25,7 +26,7 @@ def create_board():
     return board
 
 def print_board(board):
-    os.system('clear' if os.name == 'posix' else 'cls') #Comentar esta linha antes de executar para ver o tableaux
+    #os.system('clear' if os.name == 'posix' else 'cls')      #<<<----- comentar essa linha antes de executar para ver o tableaux
     print(" 0 1 2 3 4 5 6")
     for row in board:
         print("|" + "|".join(row) + "|")
@@ -73,7 +74,7 @@ def pc_vs_pc(state):
         print(f"{state.current_player} Plays:\n")
         move = uct_search(state, 1000)
         state = state.do_move(move)
-        os.system('sleep 1')  # Atraso para visualização
+        os.system('sleep 1')  #atraso para visualização / comentar essa linha para execução rápida.
     
     print_board(state.board)
     print_result(state)
@@ -135,10 +136,10 @@ class ConnectFourState:
 
     def get_winner(self):
         directions = [
-            (0, 1),  # horizontal
-            (1, 0),  # vertical
-            (1, 1),  # diagonal down-right
-            (1, -1)   # diagonal down-left
+            (0, 1),  #horizontal
+            (1, 0),  #vertical
+            (1, 1),  #diagonal down-right
+            (1, -1)  #diagonal down-left
         ]
         
         for row in range(6):
@@ -162,16 +163,17 @@ class Node:
         self.parent = parent
         self.children = []
         self.visits = 0
-        self.value = 0
+        self.total_value = 0
 
     def is_fully_expanded(self):
         return len(self.children) == len(self.state.get_legal_moves())
     
     def select_child(self):
-        depth = self.get_depth()
-        exploration_constant = 1.0 / math.sqrt(depth + 2.0)
-        return max(self.children, key=lambda c: c.value/c.visits + exploration_constant * math.sqrt(2*math.log(self.visits)/c.visits))
-    # comparar os valores de value/ visits
+        exploration_constant = math.sqrt(2)
+        
+        return max(self.children, key=lambda child: 
+            (child.total_value / child.visits if child.visits > 0 else float('inf')) + 
+            exploration_constant * math.sqrt(math.log(self.visits) / (child.visits if child.visits > 0 else 1)))
 
     def add_child(self, child_state):
         child = Node(child_state, self)
@@ -183,38 +185,47 @@ def uct_search(state, num_iterations):
     
     for _ in range(num_iterations):
         node = root_node
-        state = state.clone()
+        current_state = state.clone()
         
-        while not state.is_terminal() and node.is_fully_expanded():
+        # Selection
+        while not current_state.is_terminal() and node.is_fully_expanded():
             node = node.select_child()
-            state = state.do_move(node.state.last_move[1])  # Use column number
-
-        # Expansion    
-        if not state.is_terminal():
-            unexplored_moves = [move for move in state.get_legal_moves() 
+            current_state = current_state.do_move(node.state.last_move[1])
+        
+        # Expansion
+        if not current_state.is_terminal():
+            unexplored_moves = [move for move in current_state.get_legal_moves() 
                               if move not in [child.state.last_move[1] 
                                             for child in node.children]]
             if unexplored_moves:
                 chosen_move = random.choice(unexplored_moves)
-                state = state.do_move(chosen_move)
-                node = node.add_child(state)
+                current_state = current_state.do_move(chosen_move)
+                node = node.add_child(current_state)
         
         # Simulation
-        while not state.is_terminal():
-            legal_moves = state.get_legal_moves()
-            if legal_moves:
-                move = random.choice(legal_moves)
-                state = state.do_move(move)
-            else:
-                break
+        simulation_state = current_state.clone()
+        while not simulation_state.is_terminal():
+            legal_moves = simulation_state.get_legal_moves()
+            move = random.choice(legal_moves)
+            simulation_state = simulation_state.do_move(move)
         
         # Backpropagation
-        while node is not None:
-            node.visits += 1
-            node.value += state.get_winner() if state.get_winner() is not None else 0
+        result = simulation_state.get_winner()
+
+        while node is not None:           #atribui +1 para vitória, 0 para empate, -1 para derrota
+            node.visits += 1              #(do ponto de vista do jogador que fez o movimento)
+            if result is not None:
+                node_value = 1 if (result == 1 and node.state.current_player == 'O') or \
+                                 (result == -1 and node.state.current_player == 'X') else -1
+            else:
+                node_value = 0
+            node.total_value += node_value
             node = node.parent
-            
-    return max(root_node.children, key=lambda c: c.visits).state.last_move[1]
+    
+    if root_node.children:
+        return max(root_node.children, key=lambda c: c.visits).state.last_move[1]   #retorna o movimento mais visitado (mais consistente que maior valor)
+    else:
+        return random.choice(state.get_legal_moves())
 
 def show_menu():
     print("\n" + "="*38)
