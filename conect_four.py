@@ -1,6 +1,7 @@
 import os
 import random
 import math
+import csv
 
 # PRIO TODO: Implementar árvore de decisão ID3 e tratar dos dataset's e BD.
 
@@ -236,6 +237,26 @@ def show_menu():
     print("2. Humano vs Computador (👤 x 🤖)")
     print("3. Computador vs Computador (🤖 x 🤖)")
     print("="*38)
+
+def generateDataset(num_games=100, iterations_per_move=1000, filename='MCTS_dataset.csv'):
+    dataset = []
+
+    for _ in range(num_games):
+        state = ConnectFourState()
+        while not state.is_terminal():
+            board_state = ''.join([''.join(row) for row in state.board])
+            best_move = uct_search(state, iterations_per_move)
+            dataset.append({'state': board_state, 'move': best_move})
+            state = state.do_move(best_move)
+
+    with open(filename, 'w', newline='') as csvfile:
+        fieldnames = ['state', 'move']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        
+        writer.writeheader()
+        writer.writerows(dataset)
+
+    return dataset
 
 def main():
     while True:
