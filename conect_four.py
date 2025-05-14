@@ -5,19 +5,20 @@ import csv
 
 # PRIO TODO: Implementar árvore de decisão ID3 e tratar dos dataset's e BD.
 
-#Refatorar uct_search, não há cálculo das estatísticas dos nós (Ver slides UCB1) - FEITO
-#implementação ta em jogador vs computador ,falta implementar jogador vs jogador e computador vs computador - FEITO
+#Refatorar uct_search, não há cálculo das estatísticas dos nós (Ver slides UCB1) - DONE
+#implementação ta em jogador vs computador ,falta implementar jogador vs jogador e computador vs computador - DONE
+#as regras do jogo não estão implementadas como deveriam,pode ser visto no tableaux apresentado quando o codigo é executado - DONE
+#falta melhorar diversas coisas no codigo ,como testar diferentes parâmetros para o UCT(numeros de simulações filhos por nós), e melhorar a interface gráfica - DONE
+#integrar o jogo para o modo humano vs computador : o computador deve tomar decisões inteligentes e não aleatórias contra o jogador humano - (Há um problema na implementação do uct_search - Não é calculado o UCB1) - DONE
+#usar mcts para gerar estados do jogo e as melhores jogadas ,salvar esses dados como um dataset(cs.. ou json) - DONE
+#cenarios do jogo,humano vs humano ,humano vs computador,computador vs computador (compare os metodos ) - DONE
+
+#de seguida as melhorias devemos tratar do dataset para arvore de decisão (ID3) para o treino do modelo 
 #falta implementar a arvore de decisão e o dataset para treino do modelo
 #falta implementar a função para testar novas jogadas usando a arvore de decisão
-#as regras do jogo não estão implementadas como deveriam,pode ser visto no tableaux apresentado quando o codigo é executado
-#falta melhorar diversas coisas no codigo ,como testar diferentes parâmetros para o UCT(numeros de simulações filhos por nós), e melhorar a interface gráfica
 #melhorar eficiência do código e torna-lo mais agil para o usuario
-#integrar o jogo para o modo humano vs computador : o computador deve tomar decisões inteligentes e não aleatórias contra o jogador humano - (Há um problema na implementação do uct_search - Não é calculado o UCB1)
-#de seguida as melhorias devemos tratar do dataset para arvore de decisão (ID3) para o treino do modelo 
-#usar mcts para gerar estados do jogo e as melhores jogadas ,salvar esses dados como um dataset(cs.. ou json),
 #criar banco de dados para treinar a arvore de decisão(não usar sckit learn ,ta escrito no enunciado)
 #criar função para testar novas jogadas usando a arvore,o computador deve tomar decisões baseadas na arvore de decisão
-#cenarios do jogo,humano vs humano ,humano vs computador,computador vs computador (compare os metodos )
 #vejam  o codigo por inteiro por favor e comentem o que acham que deve ser melhorado ou adicionado,o que esta errado
 
 def create_board():
@@ -34,6 +35,7 @@ def print_board(board):
     print()
 
 def human_vs_human(state):
+    os.system('clear' if os.name == 'posix' else 'cls')
     while not state.is_terminal():
         print_board(state.board)
         current_player = state.current_player
@@ -54,6 +56,7 @@ def human_vs_human(state):
     print_result(state)
 
 def human_vs_pc(state):
+    os.system('clear' if os.name == 'posix' else 'cls')
     while not state.is_terminal():
         print_board(state.board)
         
@@ -70,13 +73,18 @@ def human_vs_pc(state):
     print_result(state)
 
 def pc_vs_pc(state):
+    os.system('clear' if os.name == 'posix' else 'cls')
     while not state.is_terminal():
         print_board(state.board)
-        print(f"{state.current_player} Plays:\n")
-        move = uct_search(state, 1000)
+        if state.current_player == 'X':
+            print(f"MCTS (X) Plays:\n")
+            move = uct_search(state, 1000)
+        else:
+            print(f"ID3 (O) Plays:\n")
+            move = id3_procedure(state) #Integrar ID3 ao código aqui
         state = state.do_move(move)
-        os.system('sleep 1')  #atraso para visualização / comentar essa linha para execução rápida.
-    
+        os.system('sleep 1')
+
     print_board(state.board)
     print_result(state)
 
@@ -123,7 +131,7 @@ class ConnectFourState:
             return None
         new_state = self.clone()
 
-        # Find the lowest empty position in the column
+        #Encontrando a posição vazia mais baixa na coluna:
         for row in range(5, -1, -1):
             if new_state.board[row][col] == '_':
                 new_state.board[row][col] = self.current_player
@@ -135,14 +143,13 @@ class ConnectFourState:
     def is_terminal(self):
         return self.get_winner() is not None or len(self.get_legal_moves()) == 0
 
+    #Verificação de vitória usando array de vetores de direção:
     def get_winner(self):
         directions = [
             (0, 1),  #horizontal
             (1, 0),  #vertical
-            (1, 1),  #diagonal down-right
-            (1, -1)  #diagonal down-left
-        ]
-        
+            (1, 1),  #diagonal baixo-direita
+            (1, -1)] #diagonal baixo-esquerda
         for row in range(6):
             for col in range(7):
                 if self.board[row][col] == '_':
@@ -154,7 +161,7 @@ class ConnectFourState:
                             self.board[row + 2*dr][col + 2*dc] == 
                             self.board[row + 3*dr][col + 3*dc] != '_'):
                             return 1 if self.board[row][col] == 'X' else -1
-                    except IndexError:
+                    except IndexError: #Pula as verificações fora dos limites do tabuleiro
                         continue
         return None
 
@@ -171,10 +178,8 @@ class Node:
     
     def select_child(self):
         exploration_constant = math.sqrt(2)
-        
-        return max(self.children, key=lambda child: 
-            (child.total_value / child.visits if child.visits > 0 else float('inf')) + 
-            exploration_constant * math.sqrt(math.log(self.visits) / (child.visits if child.visits > 0 else 1)))
+        #usando a função lambda para determinar o filho com maior pontuação de ucb1 corretamente
+        return max(self.children, key=lambda child: (child.total_value / child.visits if child.visits > 0 else float('inf')) + exploration_constant * math.sqrt(math.log(self.visits) / (child.visits if child.visits > 0 else 1)))
 
     def add_child(self, child_state):
         child = Node(child_state, self)
@@ -183,7 +188,6 @@ class Node:
 
 def uct_search(state, num_iterations):
     root_node = Node(state)
-    
     for _ in range(num_iterations):
         node = root_node
         current_state = state.clone()
@@ -212,7 +216,6 @@ def uct_search(state, num_iterations):
         
         # Backpropagation
         result = simulation_state.get_winner()
-
         while node is not None:           #atribui +1 para vitória, 0 para empate, -1 para derrota
             node.visits += 1              #(do ponto de vista do jogador que fez o movimento)
             if result is not None:
@@ -240,7 +243,6 @@ def show_menu():
 
 def generateDataset(num_games=100, iterations_per_move=1000, filename='MCTS_dataset.csv'):
     dataset = []
-
     for _ in range(num_games):
         state = ConnectFourState()
         while not state.is_terminal():
@@ -251,11 +253,9 @@ def generateDataset(num_games=100, iterations_per_move=1000, filename='MCTS_data
 
     with open(filename, 'w', newline='') as csvfile:
         fieldnames = ['state', 'move']
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-        
+        writer = csv.DictWriter(csvfile, fieldnames)
         writer.writeheader()
         writer.writerows(dataset)
-
     return dataset
 
 def main():
