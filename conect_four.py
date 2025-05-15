@@ -232,6 +232,7 @@ def uct_search(state, num_iterations):
         return random.choice(state.get_legal_moves())
 
 def show_menu():
+    os.system('clear' if os.name == 'posix' else 'cls')
     print("\n" + "="*38)
     print("     CONNECT FOUR - Modos de Jogo")
     #print("     by Adelino, Martim e Rodrigo")
