@@ -236,9 +236,9 @@ def show_menu():
     print("     CONNECT FOUR - Modos de Jogo")
     #print("     by Adelino, Martim e Rodrigo")
     print("="*38)
-    print("1. Humano vs Humano (👤 x 👤)")
-    print("2. Humano vs Computador (👤 x 🤖)")
-    print("3. Computador vs Computador (🤖 x 🤖)")
+    print("1. Humano vs Humano (\U0001F464 x \U0001F464)")
+    print("2. Humano vs Computador (\U0001F464 x \U0001F916)")
+    print("3. Computador vs Computador (\U0001F916 x \U0001F916)")
     print("="*38)
 
 def generateDataset(num_games=100, iterations_per_move=1000, filename='MCTS_dataset.csv'):
