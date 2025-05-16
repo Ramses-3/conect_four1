@@ -13,12 +13,8 @@
  5. Avaliação e Resultados- Acurácia da árvore ID3 no dataset Iris: 98.00%
  6. - Acurácia da árvore ID3 treinada com dados do MCTS: 93.17%
     - Simulação de 5 jogos entre MCTS (X) e ID3 (O):
-  Configuração da Árvore        | Vitórias MCTS (X) | Vitórias ID3 (O) | Empates
-  ----------------------------- | ----------------- | ---------------- | ------
-  ID3 não podada                | 4                 | 1                | 0
-  
-  
-  ID3 podada (profundidade 4)   | 1                 | 0                | 0
+      *ID3 não podada  : obtém MCTS(X) - 4  vitórias  , ID3 (O)-  1  vitória   e  zero empates
+      *ID3 podada (profundidade 4) : obtém MCTS(x) -  1 vitória ,ID3 (O) - 0  e zero empates.
  
  4. Conclusão
  O agente MCTS mostrou-se mais robusto e exploratório, enquanto o ID3 foi eficiente e rápido nas previsões.
@@ -26,5 +22,6 @@
  padrões de jogo.
  Contudo, observou-se que a versão não podada da árvore ID3 teve desempenho superior no jogo, vencendo
  uma partida.
+ 
  Já a versão podada (profundidade 4), apesar de mais interpretável, não conseguiu vencer o MCTS.
 
