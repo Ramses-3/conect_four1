@@ -178,7 +178,7 @@ class Node:
     
     def select_child(self):
         exploration_constant = math.sqrt(2)
-        #usando a função lambda para determinar o filho com maior pontuação de ucb1 corretamente
+        #usando função lambda para determinar o filho com maior pontuação de ucb1 corretamente
         return max(self.children, key=lambda child: (child.total_value / child.visits if child.visits > 0 else float('inf')) + exploration_constant * math.sqrt(math.log(self.visits) / (child.visits if child.visits > 0 else 1)))
 
     def add_child(self, child_state):
