@@ -16,6 +16,8 @@
   Configuração da Árvore        | Vitórias MCTS (X) | Vitórias ID3 (O) | Empates
   ----------------------------- | ----------------- | ---------------- | ------
   ID3 não podada                | 4                 | 1                | 0
+  
+  
   ID3 podada (profundidade 4)   | 1                 | 0                | 0
  
  4. Conclusão
