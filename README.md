@@ -15,6 +15,10 @@
     - Simulação de 5 jogos entre MCTS (X) e ID3 (O):
       *ID3 não podada  : obtém MCTS(X) - 4  vitórias  , ID3 (O)-  1  vitória   e  zero empates
       *ID3 podada (profundidade 4) : obtém MCTS(x) -  1 vitória ,ID3 (O) - 0  e zero empates.
+
+ Observação: os resultados foram obtidos com uma simulação de 5 partidas. Devido à aleatoriedade do
+ algoritmo MCTS e à natureza heurística da árvore ID3, os resultados podem variar ligeiramente em
+ execuções futuras.
  
  4. Conclusão
  O agente MCTS mostrou-se mais robusto e exploratório, enquanto o ID3 foi eficiente e rápido nas previsões.
