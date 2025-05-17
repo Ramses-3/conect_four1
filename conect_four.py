@@ -79,45 +79,204 @@ def pc_vs_pc(state):
             move = uct_search(state, 1000)
         else:
             print(f"ID3 (O) Plays:\n")
-            move = id3_procedure(state) #Integrar ID3 ao código aqui
+            move = id3_procedure(state)
         state = state.do_move(move)
         os.system('sleep 1')
 
     print_board(state.board)
     print_result(state)
 
-id3_test_tree = {}
+# Funções para extração de features e análise do tabuleiro
+def converter_state_para_board(state_str):
+    return [list(state_str[i*7:(i+1)*7]) for i in range(6)]
 
-def id3_procedure(state):
-    flat = [cell for row in state.board for cell in row]
-    board = [flat[i*7:(i+1)*7] for i in range(6)]
-    features = {f'cell_{i}': flat[i] for i in range(42)}
-    features.update(extrair_features(board))
-    legal_moves = state.get_legal_moves()
-    move = predict_with_tree(id3_test_tree, features)
-    return move if isinstance(move, int) and move in legal_moves else random.choice(legal_moves)
+def extrair_diagonais(board):
+    diagonais = []
+    # Diagonais principais
+    for i in range(-2, 4):
+        diag = [board[row][row+i] for row in range(6) if 0 <= row+i < 7]
+        if len(diag) >= 4:
+            diagonais.append(diag)
+    # Diagonais secundárias
+    for i in range(3, 9):
+        diag = [board[row][i-row] for row in range(6) if 0 <= i-row < 7]
+        if len(diag) >= 4:
+            diagonais.append(diag)
+    return diagonais
 
-def extrair_features(board):
+def verificar_padrao(window, prefix):
+    patterns = {
+        'X3': ['X','X','X','_'],
+        '_XXX': ['_','X','X','X'],
+        'O3': ['O','O','O','_'],
+        '_OOO': ['_','O','O','O'],
+        'XX_X': ['X','X','_','X'],
+        'OO_O': ['O','O','_','O']
+    }
+    found = {}
+    for name, pattern in patterns.items():
+        if window == pattern:
+            found[f'{prefix}_{name}'] = 1
+    return found
+
+def analisar_ameacas(board):
+    threats = {}
+    for row in range(6): # Varredura horizontal
+        for col in range(4):
+            window = [board[row][col+i] for i in range(4)]
+            threats.update(verificar_padrao(window, f'h{row}{col}'))
+    
+    for col in range(7): # Varredura vertical
+        for row in range(3):
+            window = [board[row+i][col] for i in range(4)]
+            threats.update(verificar_padrao(window, f'v{col}{row}'))
+    
+    diagonais = extrair_diagonais(board) # Varredura diagonal
+    for i, diag in enumerate(diagonais):
+        for j in range(len(diag)-3):
+            window = diag[j:j+4]
+            threats.update(verificar_padrao(window, f'd{i}{j}'))
+    
+    return threats
+
+def analisar_potencias(board):
+    potencias = {}
+    for col in [2,3,4]:
+        potencias[f'col{col}_x'] = sum(1 for row in range(6) if board[row][col] == 'X')
+        potencias[f'col{col}_o'] = sum(1 for row in range(6) if board[row][col] == 'O')
+    
+    for row in range(6):
+        x_count = board[row].count('X')
+        o_count = board[row].count('O')
+        if x_count >= 2: potencias[f'row{row}_x'] = x_count
+        if o_count >= 2: potencias[f'row{row}_o'] = o_count
+    
+    return potencias
+
+def extrair_features(state_str):
+    board = converter_state_para_board(state_str)
     features = {}
-    for col in range(7):
-        col_vals = [board[row][col] for row in range(6)]
-        features[f'count_X_col_{col}'] = col_vals.count('X')
-        features[f'count_O_col_{col}'] = col_vals.count('O')
-        features[f'count__col_{col}'] = col_vals.count('_')
-        features[f'top_{col}'] = next((cell for cell in col_vals if cell != '_'), '_')
+    features['centro'] = sum(1 for col in [2,3,4] if board[0][col] == '_')
+    features.update(analisar_ameacas(board))
+    features.update(analisar_potencias(board))
     return features
 
-def predict_with_tree(tree, example):
-    while isinstance(tree, dict):
-        if not tree:
-            return None
-        attr = next(iter(tree))
-        branches = tree[attr]
-        val = example.get(attr)
-        if val not in branches:
-            return None
-        tree = branches[val]
-    return tree
+class ID3DecisionTree:
+    def __init__(self):
+        self.tree = {}
+        self.feature_list = []
+
+    def train(self, dataset):
+        # Processamento do dataset para extração de features
+        processed_data = []
+        for row in dataset:
+            state_str = row['state']
+            features = extrair_features(state_str)
+            features['move'] = int(row['move']) if row['move'].isdigit() else 0
+            processed_data.append(features)
+        
+        if not processed_data:
+            return
+            
+        self.feature_list = list(processed_data[0].keys())
+        self.feature_list.remove('move')
+        
+        self.tree = self.construir_arvore(processed_data, self.feature_list.copy())
+
+    def construir_arvore(self, data, features, depth=0):
+        #Condições de parada
+        if not data or depth > 5:  # Limitar profundidade máxima
+            return self.obter_movimento_mais_comum(data)
+        
+
+        moves = set(d['move'] for d in data) #Verificar se todos os exemplos têm o mesmo movimento
+        if len(moves) == 1:
+            return next(iter(moves))
+            
+        best_feature = self.selecionar_melhor_feature(data, features) #Selecionar melhor feature
+        if not best_feature:
+            return self.obter_movimento_mais_comum(data)
+        
+        node = {best_feature: {}} #Construir nó da árvore
+        remaining_features = [f for f in features if f != best_feature]
+        feature_values = set(d.get(best_feature, None) for d in data) #construir subárvores para cada valor da feature
+        for value in feature_values:
+            subset = [d for d in data if d.get(best_feature) == value]
+            if subset:
+                node[best_feature][value] = self.construir_arvore(subset, remaining_features, depth+1)
+        
+        return node
+
+    def selecionar_melhor_feature(self, data, features):
+        best_gain = -1
+        best_feature = None
+        entropy_total = self.calcular_entropia(data)
+        
+        for feature in features:
+            gain = self.calcular_ganho(data, feature, entropy_total)
+            if gain > best_gain:
+                best_gain = gain
+                best_feature = feature
+        return best_feature
+
+    def calcular_entropia(self, data):
+        if not data:
+            return 0
+        counts = defaultdict(int)
+        for d in data:
+            counts[d['move']] += 1
+        total = len(data)
+        return -sum((c/total) * math.log2(c/total) for c in counts.values() if c > 0)
+
+    def calcular_ganho(self, data, feature, entropy_total):
+        values = defaultdict(list)
+        for d in data:
+            values[d.get(feature)].append(d['move'])
+        
+        weighted_entropy = 0
+        total = len(data)
+        for value, moves in values.items():
+            subset_entropy = self.calcular_entropia([{'move': m} for m in moves])
+            weighted_entropy += (len(moves)/total) * subset_entropy
+        
+        return entropy_total - weighted_entropy
+
+    def obter_movimento_mais_comum(self, data):
+        if not data:
+            return random.randint(0, 6)
+        counts = defaultdict(int)
+        for d in data:
+            counts[d['move']] += 1
+        return max(counts, key=counts.get)
+
+    def predict(self, state):
+        current_state = ''.join([''.join(row) for row in state.board])
+        features = extrair_features(current_state)
+        legal_moves = state.get_legal_moves()
+        
+        def navegar(node):
+            if not isinstance(node, dict):
+                return node
+                
+            feature = next(iter(node))
+            value = features.get(feature, None)
+            
+            if value not in node[feature]:
+                return self.obter_movimento_mais_comum([])
+                
+            return navegar(node[feature][value])
+        
+        move = navegar(self.tree)
+        return move if move in legal_moves else random.choice(legal_moves)
+
+id3_tree = ID3DecisionTree()
+
+def id3_procedure(state):
+    state_str = ''.join([''.join(row) for row in state.board])
+    features = extrair_features(state_str)
+    legal_moves = state.get_legal_moves()
+    move = id3_tree.predict(state)
+    return move if move in legal_moves else random.choice(legal_moves)
 
 def get_human_move(state):
     while True:
@@ -162,7 +321,7 @@ class ConnectFourState:
             return None
         new_state = self.clone()
 
-        #encontrar a posição vazia mais baixa na coluna:
+        # Encontrar a posição vazia mais baixa na coluna
         for row in range(5, -1, -1):
             if new_state.board[row][col] == '_':
                 new_state.board[row][col] = self.current_player
@@ -174,25 +333,27 @@ class ConnectFourState:
     def is_terminal(self):
         return self.get_winner() is not None or len(self.get_legal_moves()) == 0
 
-    #verificação de vitória usando array de vetores de direção:
     def get_winner(self):
         directions = [
-            (0, 1),  #horizontal
-            (1, 0),  #vertical
-            (1, 1),  #diagonal baixo-direita
-            (1, -1)] #diagonal baixo-esquerda
+            (0, 1),  # horizontal
+            (1, 0),  # vertical
+            (1, 1),  # diagonal baixo-direita
+            (1, -1)  # diagonal baixo-esquerda
+        ]
+        
         for row in range(6):
             for col in range(7):
                 if self.board[row][col] == '_':
                     continue
                     
                 for dr, dc in directions:
+                    # Verificar se há 4 peças iguais na direção
                     try:
                         if (self.board[row][col] == self.board[row + dr][col + dc] ==
                             self.board[row + 2*dr][col + 2*dc] == 
                             self.board[row + 3*dr][col + 3*dc] != '_'):
                             return 1 if self.board[row][col] == 'X' else -1
-                    except IndexError: #Pula as verificações fora dos limites do tabuleiro
+                    except IndexError:
                         continue
         return None
 
@@ -209,65 +370,24 @@ class Node:
     
     def select_child(self):
         exploration_constant = math.sqrt(2)
-        #usando função lambda para determinar o filho com maior pontuação de ucb1 corretamente
-        return max(self.children, key=lambda child: (child.total_value / child.visits if child.visits > 0 else float('inf')) + exploration_constant * math.sqrt(math.log(self.visits) / (child.visits if child.visits > 0 else 1)))
+        
+        # Função para calcular o valor UCB1
+        def ucb_value(child):
+            exploitation = child.total_value / child.visits if child.visits > 0 else float('inf')
+            exploration = exploration_constant * math.sqrt(math.log(self.visits) / child.visits) if child.visits > 0 else float('inf')
+            return exploitation + exploration
+            
+        return max(self.children, key=ucb_value)
 
     def add_child(self, child_state):
         child = Node(child_state, self)
         self.children.append(child)
         return child
-    
-class ID3DecisionTree:
-    def __init__(self):
-        self.tree = {}
-        self.features = ['state']
-
-    def train(self, dataset):
-        def build_tree(subset, used_features):
-            counts = defaultdict(int)
-            for row in subset:
-                counts[row['move']] += 1
-            
-            if len(counts) == 1:
-                return next(iter(counts.keys()))
-            
-            if len(used_features) >= len(self.features):
-                return max(counts, key=counts.get)
-            
-            best_feature = self.choose_best_feature(subset, used_features)
-            tree = {best_feature: {}}
-            
-            # Agrupa por valores únicos do estado completo
-            for value in set(row[best_feature] for row in subset):
-                subset_val = [row for row in subset if row[best_feature] == value]
-                subtree = build_tree(subset_val, used_features + [best_feature])
-                tree[best_feature][value] = subtree
-            
-            return tree
-
-        self.tree = build_tree(dataset, [])
-
-    def choose_best_feature(self, subset, used_features):
-        # Implementação simplificada usando apenas a feature 'state'
-        counts = defaultdict(int)
-        for row in subset:
-            counts[(row['state'], row['move'])] += 1
-        
-        # Prioriza estados que levam sempre ao mesmo movimento
-        best_state = max(counts, key=lambda x: counts[x])
-        return 'state'
-
-    def predict(self, state):
-        current_state = ''.join([''.join(row) for row in state.board])
-        legal_moves = state.get_legal_moves()
-        
-        # Busca na árvore por estados completos conhecidos
-        move = self.tree.get('state', {}).get(current_state, random.choice(legal_moves))
-        return int(move) if str(move).isdigit() else random.choice(legal_moves)
 
 def uct_search(state, num_iterations):
     root_node = Node(state)
-    for _ in range(num_iterations):
+    
+    for i in range(num_iterations):
         node = root_node
         current_state = state.clone()
         
@@ -278,9 +398,13 @@ def uct_search(state, num_iterations):
         
         # Expansion
         if not current_state.is_terminal():
-            unexplored_moves = [move for move in current_state.get_legal_moves() 
-                              if move not in [child.state.last_move[1] 
-                                            for child in node.children]]
+            explored_moves = set()
+            for child in node.children:
+                if child.state.last_move:
+                    explored_moves.add(child.state.last_move[1])
+                    
+            unexplored_moves = [m for m in current_state.get_legal_moves() if m not in explored_moves]
+            
             if unexplored_moves:
                 chosen_move = random.choice(unexplored_moves)
                 current_state = current_state.do_move(chosen_move)
@@ -295,25 +419,32 @@ def uct_search(state, num_iterations):
         
         # Backpropagation
         result = simulation_state.get_winner()
-        while node is not None:           #atribui +1 para vitória, 0 para empate, -1 para derrota
-            node.visits += 1              #(do ponto de vista do jogador que fez o movimento)
+        while node is not None:
+            node.visits += 1
+            
             if result is not None:
-                node_value = 1 if (result == 1 and node.state.current_player == 'O') or \
-                                 (result == -1 and node.state.current_player == 'X') else -1
+                # Calcular valor do nó baseado no resultado e no jogador atual
+                if (result == 1 and node.state.current_player == 'O') or \
+                   (result == -1 and node.state.current_player == 'X'):
+                    node_value = 1  # Vitória para o jogador que fez o movimento
+                else:
+                    node_value = -1  # Derrota para o jogador que fez o movimento
             else:
-                node_value = 0
+                node_value = 0  # Empate
+                
             node.total_value += node_value
             node = node.parent
     
+    # Escolher o movimento com mais visitas (mais robusto que maior valor)
     if root_node.children:
-        return max(root_node.children, key=lambda c: c.visits).state.last_move[1]   #retorna o movimento mais visitado (mais consistente que maior valor)
+        best_child = max(root_node.children, key=lambda c: c.visits)
+        return best_child.state.last_move[1]
     else:
         return random.choice(state.get_legal_moves())
 
 def show_menu():
     print("\n" + "="*38)
     print("     CONNECT FOUR - Modos de Jogo")
-    #print("     by Adelino, Martim e Rodrigo")
     print("="*38)
     print("1. Humano vs Humano (\U0001F464 x \U0001F464)")
     print("2. Humano vs Computador (\U0001F464 x \U0001F916)")
@@ -342,8 +473,6 @@ def generateDataset(num_games=100, iterations_per_move=1000, filename='MCTS_data
         writer.writeheader()
         writer.writerows(dataset)
     return dataset
-
-id3_tree = ID3DecisionTree()
 
 def iniciar_id3():
     global id3_tree
