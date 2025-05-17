@@ -1,4 +1,5 @@
 # connect_four_ai.py
+import time
 import random
 import math
 import tkinter as tk #para o caso de implementação da interface grafica
@@ -237,52 +238,66 @@ def get_human_move(state):
             print("Por favor, insira um número válido.")
 
 #  MODOS DE JOGO 
-def human_vs_human():
-    state = ConnectFourState()
+def human_vs_human(state):
+    os.system('clear' if os.name == 'posix' else 'cls')
     while not state.is_terminal():
         print_board(state.board)
-        move = get_human_move(state)
-        state = state.do_move(move)
+        current_player = state.current_player
+        while True:
+            try:
+                col = int(input(f"Player {state.current_player}, choose column (0-6): "))
+                if 0 <= col <= 6 and not state.is_column_full(col):
+                    new_state = state.do_move(col)
+                    if new_state:
+                        state = new_state
+                        break
+                print("Movimento inválido, coluna cheia ou índice fora de alcance")
+            except ValueError:
+                print("Por favor digite um número entre 0-6.")
+    
     print_board(state.board)
-    winner = state.get_winner()
-    if winner == 1:
-        print("Jogador X venceu!")
-    elif winner == -1:
-        print("Jogador O venceu!")
-    else:
-        print("Empate!")
+    print_result(state)
 
-def human_vs_computer():
-    state = ConnectFourState()
+def human_vs_pc(state):
+    os.system('clear' if os.name == 'posix' else 'cls')
     while not state.is_terminal():
         print_board(state.board)
+        
         if state.current_player == 'X':
-            move = get_human_move(state)
+            print("X Plays:\n")
+            move = uct_search(state, 1000)
         else:
-            print("Computador está pensando...")
-            move = id3_procedure(state)  # Computador usa ID3 para decidir
+            print("O Plays:\n")
+            move = get_human_move(state)
+        
         state = state.do_move(move)
+    
     print_board(state.board)
-    winner = state.get_winner()
-    if winner == 1:
-        print("Jogador X venceu!")
-    elif winner == -1:
-        print("Computador venceu!")
-    else:
-        print("Empate!")
+    print_result(state)
 
 def computer_vs_computer():
     simulate_pc_vs_pc(n=1) #escala de amostras geradas,posso por 10 ,20 
 
+def print_result(state):
+    winner = state.get_winner()
+    if winner == 1:
+        print("X wins!")
+    elif winner == -1:
+        print("O wins!")
+    else:
+        print("Draw!")
+
 # MENU PRINCIPAL 
 def main():
     while True:
+        time.sleep(1)
+        os.system('clear' if os.name == 'posix' else 'cls')
         show_menu()
         choice = input("Escolha o modo (1-4): ")
         if choice == "1":
             human_vs_human()
         elif choice == "2":
-            human_vs_computer()
+            human_vs_pc()
         elif choice == "3":
             computer_vs_computer()
         elif choice == "4":

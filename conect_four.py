@@ -2,6 +2,7 @@ import os
 import random
 import math
 import csv
+from collections import defaultdict
 
 # PRIO TODO: Implementar árvore de decisão ID3 e tratar dos dataset's e BD.
 
@@ -39,7 +40,6 @@ def human_vs_human(state):
     while not state.is_terminal():
         print_board(state.board)
         current_player = state.current_player
-        
         while True:
             try:
                 col = int(input(f"Player {state.current_player}, choose column (0-6): "))
@@ -56,25 +56,23 @@ def human_vs_human(state):
     print_result(state)
 
 def human_vs_pc(state):
-    os.system('clear' if os.name == 'posix' else 'cls')
     while not state.is_terminal():
+        os.system('clear' if os.name == 'posix' else 'cls')
         print_board(state.board)
-        
         if state.current_player == 'X':
-            print("X Plays:\n")
-            move = uct_search(state, 1000)
-        else:
-            print("O Plays:\n")
+            print("X Joga:\n")
             move = get_human_move(state)
-        
+        else:
+            print("O Joga:\n")
+            move = uct_search(state, 1000)
         state = state.do_move(move)
     
     print_board(state.board)
     print_result(state)
 
 def pc_vs_pc(state):
-    os.system('clear' if os.name == 'posix' else 'cls')
     while not state.is_terminal():
+        os.system('clear' if os.name == 'posix' else 'cls')
         print_board(state.board)
         if state.current_player == 'X':
             print(f"MCTS (X) Plays:\n")
@@ -88,15 +86,48 @@ def pc_vs_pc(state):
     print_board(state.board)
     print_result(state)
 
+id3_test_tree = {}
+
+def id3_procedure(state):
+    flat = [cell for row in state.board for cell in row]
+    board = [flat[i*7:(i+1)*7] for i in range(6)]
+    features = {f'cell_{i}': flat[i] for i in range(42)}
+    features.update(extrair_features(board))
+    legal_moves = state.get_legal_moves()
+    move = predict_with_tree(id3_test_tree, features)
+    return move if isinstance(move, int) and move in legal_moves else random.choice(legal_moves)
+
+def extrair_features(board):
+    features = {}
+    for col in range(7):
+        col_vals = [board[row][col] for row in range(6)]
+        features[f'count_X_col_{col}'] = col_vals.count('X')
+        features[f'count_O_col_{col}'] = col_vals.count('O')
+        features[f'count__col_{col}'] = col_vals.count('_')
+        features[f'top_{col}'] = next((cell for cell in col_vals if cell != '_'), '_')
+    return features
+
+def predict_with_tree(tree, example):
+    while isinstance(tree, dict):
+        if not tree:
+            return None
+        attr = next(iter(tree))
+        branches = tree[attr]
+        val = example.get(attr)
+        if val not in branches:
+            return None
+        tree = branches[val]
+    return tree
+
 def get_human_move(state):
     while True:
         try:
-            col = int(input(f"Player {state.current_player}, choose column (0-6): "))
+            col = int(input(f"Jogador {state.current_player}, escolha uma coluna (0-6): "))
             if 0 <= col <= 6 and not state.is_column_full(col):
                 return col
-            print("Invalid move. Column full or out of range.")
+            print("Movimento inválido. Coluna cheia ou índice fora de alcance.")
         except ValueError:
-            print("Please enter a number between 0 and 6.")
+            print("Por favor digite um número entre 0 e 6.")
 
 def print_result(state):
     winner = state.get_winner()
@@ -131,7 +162,7 @@ class ConnectFourState:
             return None
         new_state = self.clone()
 
-        #Encontrando a posição vazia mais baixa na coluna:
+        #encontrar a posição vazia mais baixa na coluna:
         for row in range(5, -1, -1):
             if new_state.board[row][col] == '_':
                 new_state.board[row][col] = self.current_player
@@ -143,7 +174,7 @@ class ConnectFourState:
     def is_terminal(self):
         return self.get_winner() is not None or len(self.get_legal_moves()) == 0
 
-    #Verificação de vitória usando array de vetores de direção:
+    #verificação de vitória usando array de vetores de direção:
     def get_winner(self):
         directions = [
             (0, 1),  #horizontal
@@ -185,6 +216,54 @@ class Node:
         child = Node(child_state, self)
         self.children.append(child)
         return child
+    
+class ID3DecisionTree:
+    def __init__(self):
+        self.tree = {}
+        self.features = ['state']
+
+    def train(self, dataset):
+        def build_tree(subset, used_features):
+            counts = defaultdict(int)
+            for row in subset:
+                counts[row['move']] += 1
+            
+            if len(counts) == 1:
+                return next(iter(counts.keys()))
+            
+            if len(used_features) >= len(self.features):
+                return max(counts, key=counts.get)
+            
+            best_feature = self.choose_best_feature(subset, used_features)
+            tree = {best_feature: {}}
+            
+            # Agrupa por valores únicos do estado completo
+            for value in set(row[best_feature] for row in subset):
+                subset_val = [row for row in subset if row[best_feature] == value]
+                subtree = build_tree(subset_val, used_features + [best_feature])
+                tree[best_feature][value] = subtree
+            
+            return tree
+
+        self.tree = build_tree(dataset, [])
+
+    def choose_best_feature(self, subset, used_features):
+        # Implementação simplificada usando apenas a feature 'state'
+        counts = defaultdict(int)
+        for row in subset:
+            counts[(row['state'], row['move'])] += 1
+        
+        # Prioriza estados que levam sempre ao mesmo movimento
+        best_state = max(counts, key=lambda x: counts[x])
+        return 'state'
+
+    def predict(self, state):
+        current_state = ''.join([''.join(row) for row in state.board])
+        legal_moves = state.get_legal_moves()
+        
+        # Busca na árvore por estados completos conhecidos
+        move = self.tree.get('state', {}).get(current_state, random.choice(legal_moves))
+        return int(move) if str(move).isdigit() else random.choice(legal_moves)
 
 def uct_search(state, num_iterations):
     root_node = Node(state)
@@ -232,7 +311,6 @@ def uct_search(state, num_iterations):
         return random.choice(state.get_legal_moves())
 
 def show_menu():
-    os.system('clear' if os.name == 'posix' else 'cls')
     print("\n" + "="*38)
     print("     CONNECT FOUR - Modos de Jogo")
     #print("     by Adelino, Martim e Rodrigo")
@@ -240,9 +318,15 @@ def show_menu():
     print("1. Humano vs Humano (\U0001F464 x \U0001F464)")
     print("2. Humano vs Computador (\U0001F464 x \U0001F916)")
     print("3. Computador vs Computador (\U0001F916 x \U0001F916)")
+    print("4. Sair")
     print("="*38)
 
 def generateDataset(num_games=100, iterations_per_move=1000, filename='MCTS_dataset.csv'):
+    if os.path.exists(filename):
+        print(f"Dataset existente encontrado em {filename}, delete {filename} e execute novamente se quiser usar um novo dataset")
+        return
+    
+    print(f"Gerando novo dataset com {num_games} jogos e {iterations_per_move} iterações...")
     dataset = []
     for _ in range(num_games):
         state = ConnectFourState()
@@ -259,26 +343,43 @@ def generateDataset(num_games=100, iterations_per_move=1000, filename='MCTS_data
         writer.writerows(dataset)
     return dataset
 
+id3_tree = ID3DecisionTree()
+
+def iniciar_id3():
+    global id3_tree
+    if not id3_tree.tree:
+        if not os.path.exists('MCTS_dataset.csv'):
+            generateDataset()
+        print("Carregando dataset para treinar a árvore ID3...")
+        with open('MCTS_dataset.csv') as f:
+            reader = csv.DictReader(f)
+            dataset = list(reader)
+        print("Treinando árvore de decisão...")
+        id3_tree.train(dataset)
+        print("Treinamento concluído!")
+
 def main():
+    iniciar_id3()
     while True:
         show_menu()
         try:
-            choice = int(input("CHOOSE GAME MODE (1-3): "))
-            if 1 <= choice <= 3:
+            choice = int(input("ESCOLHER MODO DE JOGO (1-4): "))
+            if 1 <= choice <= 4:
                 state = ConnectFourState()
-                
                 if choice == 1:
                     human_vs_human(state)
                 elif choice == 2:
                     human_vs_pc(state)
-                else:
+                elif choice == 3:
                     pc_vs_pc(state)
-                
-                break
+                elif choice == 4:
+                    print("Saindo do jogo. Até logo!")
+                    break
             else:
-                print("\nInvalid option. Try again.\n")
+                os.system('clear' if os.name == 'posix' else 'cls')
+                print("\nOpção inválida. Tente novamente.\n")
         except ValueError:
-            print("\nPlease insert a number between 1 and 3:\n")
+            print("\nPor favor insira um número entre 1 e 4:\n")
 
 if __name__ == "__main__":
     main()
