@@ -22,6 +22,8 @@ from collections import defaultdict
 #criar função para testar novas jogadas usando a arvore,o computador deve tomar decisões baseadas na arvore de decisão
 #vejam  o codigo por inteiro por favor e comentem o que acham que deve ser melhorado ou adicionado,o que esta errado
 
+#emojis unicode: https://unicode.org/emoji/charts/full-emoji-list.html (trocar '+' por 000)
+
 def create_board():
     board = []
     for _ in range(6):
@@ -86,6 +88,8 @@ def pc_vs_pc(state):
     print_board(state.board)
     print_result(state)
 
+### Função para o ID3 - Martim
+
 # Funções para extração de features e análise do tabuleiro
 def converter_state_para_board(state_str):
     return [list(state_str[i*7:(i+1)*7]) for i in range(6)]
@@ -144,13 +148,11 @@ def analisar_potencias(board):
     for col in [2,3,4]:
         potencias[f'col{col}_x'] = sum(1 for row in range(6) if board[row][col] == 'X')
         potencias[f'col{col}_o'] = sum(1 for row in range(6) if board[row][col] == 'O')
-    
     for row in range(6):
         x_count = board[row].count('X')
         o_count = board[row].count('O')
         if x_count >= 2: potencias[f'row{row}_x'] = x_count
         if o_count >= 2: potencias[f'row{row}_o'] = o_count
-    
     return potencias
 
 def extrair_features(state_str):
@@ -174,7 +176,7 @@ class ID3DecisionTree:
             features = extrair_features(state_str)
             features['move'] = int(row['move']) if row['move'].isdigit() else 0
             processed_data.append(features)
-        
+
         if not processed_data:
             return
             
@@ -188,11 +190,10 @@ class ID3DecisionTree:
         if not data or depth > 5:  # Limitar profundidade máxima
             return self.obter_movimento_mais_comum(data)
         
-
         moves = set(d['move'] for d in data) #Verificar se todos os exemplos têm o mesmo movimento
         if len(moves) == 1:
             return next(iter(moves))
-            
+
         best_feature = self.selecionar_melhor_feature(data, features) #Selecionar melhor feature
         if not best_feature:
             return self.obter_movimento_mais_comum(data)
@@ -277,6 +278,22 @@ def id3_procedure(state):
     legal_moves = state.get_legal_moves()
     move = id3_tree.predict(state)
     return move if move in legal_moves else random.choice(legal_moves)
+
+
+def iniciar_id3():
+    global id3_tree
+    if not id3_tree.tree:
+        if not os.path.exists('MCTS_dataset.csv'):
+            generateDataset()
+        print("Carregando dataset para treinar a árvore ID3...")
+        with open('MCTS_dataset.csv') as f:
+            reader = csv.DictReader(f)
+            dataset = list(reader)
+        print("Treinando árvore de decisão...")
+        id3_tree.train(dataset)
+        print("Treinamento concluído!")
+
+### MARTIM TERMINA EXPLICAÇÃO
 
 def get_human_move(state):
     while True:
@@ -473,19 +490,6 @@ def generateDataset(num_games=100, iterations_per_move=1000, filename='MCTS_data
         writer.writeheader()
         writer.writerows(dataset)
     return dataset
-
-def iniciar_id3():
-    global id3_tree
-    if not id3_tree.tree:
-        if not os.path.exists('MCTS_dataset.csv'):
-            generateDataset()
-        print("Carregando dataset para treinar a árvore ID3...")
-        with open('MCTS_dataset.csv') as f:
-            reader = csv.DictReader(f)
-            dataset = list(reader)
-        print("Treinando árvore de decisão...")
-        id3_tree.train(dataset)
-        print("Treinamento concluído!")
 
 def main():
     iniciar_id3()
