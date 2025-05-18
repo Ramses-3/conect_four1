@@ -182,7 +182,6 @@ class ID3DecisionTree:
             
         self.feature_list = list(processed_data[0].keys())
         self.feature_list.remove('move')
-        
         self.tree = self.construir_arvore(processed_data, self.feature_list.copy())
 
     def construir_arvore(self, data, features, depth=0):
@@ -258,15 +257,12 @@ class ID3DecisionTree:
         def navegar(node):
             if not isinstance(node, dict):
                 return node
-                
             feature = next(iter(node))
             value = features.get(feature, None)
-            
             if value not in node[feature]:
                 return self.obter_movimento_mais_comum([])
-                
             return navegar(node[feature][value])
-        
+    
         move = navegar(self.tree)
         return move if move in legal_moves else random.choice(legal_moves)
 
