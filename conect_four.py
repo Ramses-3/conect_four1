@@ -292,6 +292,26 @@ def iniciar_id3():
         print("Treinando árvore de decisão...")
         id3_tree.train(dataset)
         print("Treinamento concluído!")
+    
+def simulate_pc_vs_pc(n=1):
+    results = {'X': 0, 'O': 0, 'Draw': 0}
+    for _ in range(n):
+        state = ConnectFourState()
+        while not state.is_terminal():
+            if state.current_player == 'X':
+                move = uct_search(state, 300)  # Computador X usa MCTS
+            else:
+                move = id3_procedure(state)  # Computador O usa ID3
+            state = state.do_move(move)
+        winner = state.get_winner()
+        if winner == 1:
+            results['X'] += 1
+        elif winner == -1:
+            results['O'] += 1
+        else:
+            results['Draw'] += 1
+    os.system('clear' if os.name == 'posix' else 'cls')
+    print(results)
 
 ### MARTIM TERMINA EXPLICAÇÃO
 
@@ -466,7 +486,8 @@ def show_menu():
     print("1. Humano vs Humano (\U0001F464 x \U0001F464)")
     print("2. Humano vs Computador (\U0001F464 x \U0001F916)")
     print("3. Computador vs Computador (\U0001F916 x \U0001F916)")
-    print("4. Sair")
+    print("4. Múltiplas amostras PCvsPC (\U0001F916\U0001F916\U0001F916 x \U0001F916\U0001F916\U0001F916)")
+    print("5. Sair")
     print("="*38)
 
 def generateDataset(num_games=100, iterations_per_move=1000, filename='MCTS_dataset.csv'):
@@ -497,7 +518,7 @@ def main():
         show_menu()
         try:
             choice = int(input("ESCOLHER MODO DE JOGO (1-4): "))
-            if 1 <= choice <= 4:
+            if 1 <= choice <= 5:
                 state = ConnectFourState()
                 if choice == 1:
                     human_vs_human(state)
@@ -506,6 +527,8 @@ def main():
                 elif choice == 3:
                     pc_vs_pc(state)
                 elif choice == 4:
+                    simulate_pc_vs_pc(10)
+                elif choice == 5:
                     print("Saindo do jogo. Até logo!")
                     break
             else:
