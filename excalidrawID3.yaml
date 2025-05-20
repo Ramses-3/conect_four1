@@ -1,0 +1,92 @@
+```excalidraw
+theme: light
+elements:
+  # Raiz (Feature mais importante)
+  - type: rectangle
+    x: 300
+    y: 50
+    width: 150
+    height: 60
+    text: "Centro ocupado? (Coluna 3)"
+    fillStyle: "#f0f0f0"
+    strokeWidth: 2
+
+  # Ramos da decisão
+  - type: arrow
+    points: [[375, 110], [375, 160]]
+    strokeWidth: 2
+  - type: text
+    x: 350
+    y: 135
+    text: "Sim"
+    fontSize: 16
+  - type: arrow
+    points: [[375, 110], [200, 160]]
+    strokeWidth: 2
+  - type: text
+    x: 250
+    y: 135
+    text: "Não"
+    fontSize: 16
+
+  # Nível 1 - Sim
+  - type: rectangle
+    x: 300
+    y: 160
+    width: 150
+    height: 60
+    text: "Ameaça de 3 em linha?"
+    fillStyle: "#e3f2fd"
+    strokeWidth: 2
+  - type: arrow
+    points: [[375, 220], [375, 270]]
+    strokeWidth: 2
+  - type: text
+    x: 355
+    y: 245
+    text: "Sim"
+    fontSize: 16
+  - type: arrow
+    points: [[375, 220], [200, 270]]
+    strokeWidth: 2
+  - type: text
+    x: 250
+    y: 245
+    text: "Não"
+    fontSize: 16
+
+  # Folhas (decisões finais)
+  - type: ellipse
+    x: 300
+    y: 270
+    width: 120
+    height: 50
+    text: "Bloquear jogada"
+    fillStyle: "#c8e6c9"
+    strokeWidth: 2
+  - type: ellipse
+    x: 150
+    y: 270
+    width: 120
+    height: 50
+    text: "Atacar coluna 2"
+    fillStyle: "#ffcdd2"
+    strokeWidth: 2
+
+  # Nível 1 - Não
+  - type: rectangle
+    x: 150
+    y: 160
+    width: 150
+    height: 60
+    text: "Oponente no centro?"
+    fillStyle: "#e3f2fd"
+    strokeWidth: 2
+  - type: ellipse
+    x: 150
+    y: 270
+    width: 120
+    height: 50
+    text: "Jogar no centro"
+    fillStyle: "#c8e6c9"
+    strokeWidth: 2
